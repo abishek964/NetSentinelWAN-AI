@@ -1,0 +1,5 @@
+psycopg[binary]
+pandas
+scikit-learn
+joblib
+python-dotenv

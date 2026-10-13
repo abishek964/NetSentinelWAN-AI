@@ -14,6 +14,8 @@ from datetime import datetime, timedelta
 
 import psycopg
 
+from anomalies import AnomalyEvent, AnomalyType, apply_link_anomaly
+
 from topology import WAN_LINKS, DEVICES
 from telemetry_generator import (
     LinkState,
@@ -26,6 +28,20 @@ from telemetry_generator import (
 NUM_STEPS = 200          # how many readings to generate per link/device
 SECONDS_PER_STEP = 10    # how much simulated time passes between readings
 
+ANOMALY_SCHEDULE = [
+AnomalyEvent("EVT-001", AnomalyType.LINK_DEGRADATION, "MPLS-HQ-BLR", start_step=40,  duration_steps=14, severity=2.5),
+AnomalyEvent("EVT-002", AnomalyType.LINK_DEGRADATION, "MPLS-HQ-HYD", start_step=100, duration_steps=16, severity=3.0),
+AnomalyEvent("EVT-003", AnomalyType.LINK_DOWN,        "MPLS-HQ-MUM", start_step=150, duration_steps=6,  severity=2.5),
+AnomalyEvent("EVT-004", AnomalyType.LINK_DEGRADATION, "MPLS-HQ-DEL", start_step=170, duration_steps=10, severity=2.0),
+
+AnomalyEvent("EVT-005", AnomalyType.LINK_DEGRADATION, "VPN-HQ-BLR",  start_step=30,  duration_steps=12, severity=2.5),
+AnomalyEvent("EVT-006", AnomalyType.LINK_DEGRADATION, "VPN-HQ-HYD",  start_step=90,  duration_steps=15, severity=3.0),
+AnomalyEvent("EVT-007", AnomalyType.LINK_DOWN,        "VPN-HQ-MUM",  start_step=140, duration_steps=5,  severity=2.5),
+AnomalyEvent("EVT-008", AnomalyType.LINK_DEGRADATION, "VPN-HQ-DEL",  start_step=175, duration_steps=10, severity=2.0),
+
+AnomalyEvent("EVT-009", AnomalyType.LINK_DEGRADATION, "LTE-HQ-DEL",  start_step=50,  duration_steps=12, severity=2.5),
+AnomalyEvent("EVT-010", AnomalyType.LINK_DOWN,        "LTE-HQ-DEL",  start_step=140, duration_steps=4,  severity=2.5),
+]
 
 def load_database_url(env_path: str = "backend/.env") -> str:
     """
@@ -64,14 +80,20 @@ def main():
 
         for state in link_states:
             r = generate_next_reading(state)
+
+    # Apply any anomaly currently active for THIS link at THIS step
+            for event in ANOMALY_SCHEDULE:
+                if event.target_id == r["link_id"] and event.is_active_at(step):
+                    r = apply_link_anomaly(r, event, step)
+
             link_rows.append((
-                r["link_id"],
-                reading_time,
-                r["latency_ms"],
-                r["jitter_ms"],
-                r["packet_loss_pct"],
-                r["utilization_pct"],
-            ))
+                        r["link_id"],
+                        reading_time,
+                        r["latency_ms"],
+                        r["jitter_ms"],
+                        r["packet_loss_pct"],
+                        r["utilization_pct"],
+                    ))
 
         for state in device_states:
             r = generate_next_device_reading(state, seconds_per_step=SECONDS_PER_STEP)
@@ -107,6 +129,18 @@ def main():
                 VALUES (%s, %s, %s, %s);
                 """,
                 device_rows,
+            )
+            anomaly_event_rows = [
+                (e.event_id, e.anomaly_type.value, e.target_id, e.start_step, e.duration_steps, e.severity)
+                for e in ANOMALY_SCHEDULE
+            ]
+            cur.executemany(
+                """
+                INSERT INTO anomaly_events
+                    (event_id, anomaly_type, target_id, start_step, duration_steps, severity)
+                VALUES (%s, %s, %s, %s, %s, %s);
+                """,
+                anomaly_event_rows,
             )
         conn.commit()
 
