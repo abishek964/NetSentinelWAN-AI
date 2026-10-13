@@ -1,0 +1,39 @@
+graph TB
+    subgraph HQ["Chennai HQ (Hub)"]
+        CHN[Chennai Core Router/Devices]
+    end
+
+    subgraph BLR["Bangalore Branch"]
+        BLR_DEV[Devices]
+    end
+
+    subgraph HYD["Hyderabad Branch"]
+        HYD_DEV[Devices]
+    end
+
+    subgraph MUM["Mumbai Branch"]
+        MUM_DEV[Devices]
+    end
+
+    subgraph DEL["Delhi Branch"]
+        DEL_DEV[Devices]
+    end
+
+    CHN ==>|MPLS Primary| BLR_DEV
+    CHN -.->|IPSec VPN Secondary| BLR_DEV
+
+    CHN ==>|MPLS Primary| HYD_DEV
+    CHN -.->|IPSec VPN Secondary| HYD_DEV
+
+    CHN ==>|MPLS Primary| MUM_DEV
+    CHN -.->|IPSec VPN Secondary| MUM_DEV
+
+    CHN ==>|MPLS Primary| DEL_DEV
+    CHN -.->|IPSec VPN Secondary| DEL_DEV
+    CHN -..->|LTE/5G Backup| DEL_DEV
+
+    style CHN fill:#2563eb,color:#fff,stroke:#1e3a8a,stroke-width:2px
+    style BLR_DEV fill:#93c5fd,stroke:#1e40af
+    style HYD_DEV fill:#93c5fd,stroke:#1e40af
+    style MUM_DEV fill:#93c5fd,stroke:#1e40af
+    style DEL_DEV fill:#fbbf24,stroke:#92400e,stroke-width:2px
